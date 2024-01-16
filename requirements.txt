@@ -1,0 +1,7 @@
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==2.1.0
+gymnasium[all]==0.29.1
+tensorflow==2.14.0
+tensorflow-probability==0.22.1
+pytest==7.4.3
