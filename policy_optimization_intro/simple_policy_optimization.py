@@ -7,12 +7,16 @@ import tensorflow_probability as tfp
 def mlp(sizes, activation=tf.keras.activations.tanh, output_activation=tf.identity):
     # Build a feedforward neural network.
     layers = []
-    layers.append(tf.keras.layers.Input((sizes[0]), ))
+    layers.append(
+        tf.keras.layers.Input(
+            (sizes[0]),
+        )
+    )
     for size in sizes[1:-1]:
         layers.append(tf.keras.layers.Dense(units=size, activation=activation))
-    layers.append(tf.keras.layers.Dense(
-        units=sizes[-1], activation=output_activation))
+    layers.append(tf.keras.layers.Dense(units=sizes[-1], activation=output_activation))
     return tf.keras.Sequential(layers)
+
 
 # make function to compute action distribution
 
@@ -21,11 +25,13 @@ def get_policy(obs, logits_net):
     logits = logits_net(obs)
     return tfp.distributions.Categorical(logits=logits)
 
+
 # make action selection function (outputs int actions, sampled from policy)
 
 
 def get_action(obs, logits_net):
     return get_policy(tf.expand_dims(obs, axis=0), logits_net).sample().numpy().item()
+
 
 # make loss function whose gradient, for the right data, is policy gradient
 
@@ -37,16 +43,16 @@ def compute_loss(batch_obs, batch_acts, batch_weights, logits_net):
 
 def collect_experience(env, batch_size, logits_net):
     # make some empty lists for logging.
-    batch_weights = []      # for R(tau) weighting in policy gradient
-    batch_rets = []         # for measuring episode returns
-    batch_lens = []         # for measuring episode lengths
-    batch_obs = []          # for observations
-    batch_acts = []         # for actions
+    batch_weights = []  # for R(tau) weighting in policy gradient
+    batch_rets = []  # for measuring episode returns
+    batch_lens = []  # for measuring episode lengths
+    batch_obs = []  # for observations
+    batch_acts = []  # for actions
 
     # reset episode-specific variables
-    obs, _ = env.reset()       # first obs comes from starting distribution
-    done = False            # signal from environment that episode is over
-    ep_rews = []            # list for rewards accrued throughout ep
+    obs, _ = env.reset()  # first obs comes from starting distribution
+    done = False  # signal from environment that episode is over
+    ep_rews = []  # list for rewards accrued throughout ep
 
     # collect experience by acting in the environment with current policy
     while True:
@@ -82,9 +88,12 @@ def collect_experience(env, batch_size, logits_net):
     return batch_obs, batch_acts, batch_weights, batch_rets, batch_lens
 
 
-def train_one_epoch(env, batch_size, optimizer: tf.keras.optimizers.legacy.Adam, logits_net):
+def train_one_epoch(
+    env, batch_size, optimizer: tf.keras.optimizers.legacy.Adam, logits_net
+):
     batch_obs, batch_acts, batch_weights, batch_rets, batch_lens = collect_experience(
-        env=env, batch_size=batch_size, logits_net=logits_net)
+        env=env, batch_size=batch_size, logits_net=logits_net
+    )
 
     # Reset the optimizer
     for var in optimizer.variables():
@@ -96,7 +105,7 @@ def train_one_epoch(env, batch_size, optimizer: tf.keras.optimizers.legacy.Adam,
             batch_obs=tf.constant(batch_obs, dtype=tf.dtypes.float32),
             batch_acts=tf.constant(batch_acts, dtype=tf.dtypes.float32),
             batch_weights=tf.constant(batch_weights, dtype=tf.dtypes.float32),
-            logits_net=logits_net
+            logits_net=logits_net,
         )
 
     # Perform backpropagation
@@ -105,21 +114,30 @@ def train_one_epoch(env, batch_size, optimizer: tf.keras.optimizers.legacy.Adam,
     return batch_loss, batch_rets, batch_lens
 
 
-def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000, render=False):
+def train(
+    env_name="CartPole-v1",
+    hidden_sizes=[32],
+    lr=1e-2,
+    epochs=50,
+    batch_size=5000,
+    render=False,
+):
     env = gym.make(env_name)
 
-    assert isinstance(env.observation_space, gym.spaces.Box), \
-        "This example only works for envs with continuous state spaces."
-    assert isinstance(env.action_space, gym.spaces.Discrete), \
-        "This example only works for envs with discrete action spaces."
+    assert isinstance(
+        env.observation_space, gym.spaces.Box
+    ), "This example only works for envs with continuous state spaces."
+    assert isinstance(
+        env.action_space, gym.spaces.Discrete
+    ), "This example only works for envs with discrete action spaces."
 
     obs_dim = env.observation_space.shape[0]
-    print(f'Observation dimention: {obs_dim}')
+    print(f"Observation dimention: {obs_dim}")
     n_acts = env.action_space.n
-    print(f'Number of possible actions: {n_acts}')
+    print(f"Number of possible actions: {n_acts}")
 
     # make core of policy network
-    sizes = [obs_dim]+hidden_sizes+[n_acts]
+    sizes = [obs_dim] + hidden_sizes + [n_acts]
     logits_net = mlp(sizes=sizes)
 
     # make optimizer
@@ -128,26 +146,26 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_s
     # Train loop
     for i in range(epochs):
         batch_loss, batch_rets, batch_lens = train_one_epoch(
-            env, batch_size, optimizer, logits_net)
-        print('epoch: %3d \t loss: %.3f \t return: %.3f \t ep_len: %.3f' %
-              (i, batch_loss, np.mean(batch_rets), np.mean(batch_lens)))
+            env, batch_size, optimizer, logits_net
+        )
+        print(
+            "epoch: %3d \t loss: %.3f \t return: %.3f \t ep_len: %.3f"
+            % (i, batch_loss, np.mean(batch_rets), np.mean(batch_lens))
+        )
 
-    env = gym.make(env_name, render_mode='human')
+    env = gym.make(env_name, render_mode="human")
     train_one_epoch(env, batch_size, optimizer, logits_net)
 
-    return {
-        'obs_dim': obs_dim,
-        'n_acts': n_acts,
-        'sizes': sizes
-    }
+    return {"obs_dim": obs_dim, "n_acts": n_acts, "sizes": sizes}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', '--env', type=str, default='CartPole-v1')
-    parser.add_argument('--render', action='store_true')
-    parser.add_argument('--lr', type=float, default=1e-2)
+    parser.add_argument("--env_name", "--env", type=str, default="CartPole-v1")
+    parser.add_argument("--render", action="store_true")
+    parser.add_argument("--lr", type=float, default=1e-2)
     args = parser.parse_args()
-    print('\nUsing simplest formulation of policy gradient.\n')
+    print("\nUsing simplest formulation of policy gradient.\n")
     train(env_name=args.env_name, render=args.render, lr=args.lr)

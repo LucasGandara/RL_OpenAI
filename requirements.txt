@@ -1,8 +1,8 @@
 # python version 3.9.6
-torch==2.1.0
-torchvision==0.16.0
-torchaudio==2.1.0
-gymnasium[all]==0.29.1
-tensorflow==2.14.0
-tensorflow-probability==0.22.1
+torch==2.5.0
+torchvision==0.20.1
+torchaudio==2.5.1
+gymnasium[all]==1.0.0
+tensorflow==2.18.0
+tensorflow-probability==0.25.0
 pytest==7.4.3
