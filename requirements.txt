@@ -2,6 +2,7 @@
 torch==2.5.0
 torchvision==0.20.1
 torchaudio==2.5.1
+torchrl==0.6.0
 gymnasium[all]==1.0.0
 tensorflow==2.18.0
 tensorflow-probability==0.25.0
