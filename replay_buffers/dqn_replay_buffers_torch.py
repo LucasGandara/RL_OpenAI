@@ -1,11 +1,11 @@
 # Author: Lucas Gandara
 
 import enum
-import math
 import random
 import tempfile
 
 import gymnasium as gym
+import numpy as np
 import tensordict
 import torch
 import torch.nn.modules
@@ -24,10 +24,12 @@ class ObservationType(enum.Enum):
 
 
 class Hyperparameters(object):
-    num_epochs = 10
+    num_epochs = 500
     epsilon = 1
-    epsilon_decay = 0.99
-    gamma = 0.99
+    epsilon_decay = 0.95
+    min_epsilon = 0.1
+    gamma = 0.99  # discount factor
+
     batch_size = 32
     max_episode_duration = 2000
 
@@ -66,8 +68,37 @@ def train_one_epoch(
     rewards = transitions["reward"].to(device)
     actions = transitions["action"].to(device)
     states = transitions["state"].to(device)
+    next_states = transitions["next_state"].to(device)
 
-    state_action_values = actor_model(states)
+    terminal_state = torch.tensor([0, 0, 0, 0]).to(device)
+
+    terminal_episodes_mask = torch.tensor(
+        range(Hyperparameters.batch_size), device=device, dtype=torch.float32
+    )
+    for index, state in enumerate(next_states):
+        if torch.equal(state[0], terminal_state):
+            terminal_episodes_mask[index] = True
+        else:
+            terminal_episodes_mask[index] = False
+
+    with torch.no_grad():
+        yj = torch.tensor(target_model(next_states), device=device)
+    for state in enumerate(next_states):
+        is_terminal_state = terminal_episodes_mask[index]
+        if is_terminal_state:
+            yj[index] = rewards[index]
+        else:
+            with torch.no_grad():
+                yj[index] = (
+                    rewards[index] * target_model(next_states[index]).max().item()
+                )
+
+    # perform a gradient descent step on (yj - Q(aj)^2)
+    optimizer.zero_grad()
+    loss = torch.nn.functional.mse_loss(actor_model(states), yj)
+    loss.backward()
+    torch.nn.utils.clip_grad_value_(actor_model.parameters(), 100)
+    optimizer.step()
 
 
 def main():
@@ -91,17 +122,23 @@ def main():
 
     optimizer = torch.optim.Adam(actor_model.parameters(), lr=0.001)
 
-    for epochs in range(Hyperparameters.num_epochs):
-        epsilon = Hyperparameters.epsilon
+    epsilon = Hyperparameters.epsilon
+    for epoch in range(Hyperparameters.num_epochs):
+
         (
             state,
             _,
         ) = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device)
+        if epsilon > Hyperparameters.min_epsilon:
+            epsilon *= Hyperparameters.epsilon_decay
+        else:
+            epsilon = Hyperparameters.min_epsilon
+        gamma = 1
+
+        epoch_return = 0
 
         for episode in range(Hyperparameters.max_episode_duration):
-            epsilon *= Hyperparameters.epsilon_decay
-
             random_sample = random.random()
             action = None
             if random_sample < epsilon:
@@ -110,22 +147,24 @@ def main():
                 ).item()
             else:
                 with torch.no_grad():
-                    action = actor_model(state).max(0).indices.view(1, 1).item()
+                    # Take action based on the bes Q-Value
+                    action = actor_model(state).argmax().item()
 
             observation, reward, terminated, truncated, _ = env.step(action)
 
             if terminated:
-                next_state = None
+                next_state = torch.zeros_like(state)
                 reward -= 100
-            if truncated:
-                next_state = None
+            elif truncated:
+                next_state = torch.zeros_like(state)
                 reward += 100
             else:
                 next_state = torch.tensor(
                     observation, dtype=torch.float32, device=device
                 ).view(1, -1)
 
-            reward = torch.tensor([reward], device=device)
+            reward = torch.tensor([reward * gamma], device=device)
+            epoch_return += reward.item()
 
             replay_buffer.add(
                 tensordict.TensorDict(
@@ -134,12 +173,19 @@ def main():
                         "action": action,
                         "next_state": next_state,
                         "reward": reward,
+                        "step": episode,
                     }
                 ).to(device)
             )
             state = next_state
+            gamma *= Hyperparameters.gamma
 
             train_one_epoch(replay_buffer, actor_model, target_model, optimizer)
+
+            if terminated:
+                break
+
+        print("Epoch {}; Episode return: {}".format(epoch, epoch_return))
 
 
 if __name__ == "__main__":

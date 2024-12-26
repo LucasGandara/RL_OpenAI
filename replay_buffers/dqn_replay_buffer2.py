@@ -281,6 +281,12 @@ steps_done = 0
 def select_action(state):
     global steps_done
     sample = random.random()
+    # This line calculates the epsilon threshold for the epsilon-greedy exploration strategy
+    # - EPS_END (0.05) is the minimum exploration rate
+    # - EPS_START (0.9) is the initial exploration rate
+    # - The exponential decay reduces exploration over time based on steps_done
+    # - EPS_DECAY (1000) controls how quickly exploration reduces - higher means slower decay
+    # The resulting eps_threshold determines the probability of taking a random action vs exploiting learned policy
     eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(
         -1.0 * steps_done / EPS_DECAY
     )
