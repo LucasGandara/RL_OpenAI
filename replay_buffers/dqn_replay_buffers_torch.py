@@ -125,10 +125,8 @@ def main():
     epsilon = Hyperparameters.epsilon
     for epoch in range(Hyperparameters.num_epochs):
 
-        (
-            state,
-            _,
-        ) = env.reset()
+        state, _ = env.reset()
+
         state = torch.tensor(state, dtype=torch.float32, device=device)
         if epsilon > Hyperparameters.min_epsilon:
             epsilon *= Hyperparameters.epsilon_decay
